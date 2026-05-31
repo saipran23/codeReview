@@ -1,0 +1,160 @@
+const crypto = require('crypto');
+const express = require('express');
+const axios = require('axios');
+const jwt = require('jsonwebtoken');
+
+const router = express.Router();
+
+const requiredEnvVars = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'JWT_SECRET'];
+
+function getCallbackUrl(req) {
+  if (process.env.GITHUB_CALLBACK_URL) {
+    return process.env.GITHUB_CALLBACK_URL;
+  }
+
+  return `${req.protocol}://${req.get('host')}/api/auth/callback`;
+}
+
+function getFrontendUrl() {
+  return process.env.FRONTEND_URL || 'http://localhost:5173';
+}
+
+function createStateToken() {
+  return jwt.sign(
+    { nonce: crypto.randomBytes(16).toString('hex') },
+    process.env.JWT_SECRET,
+    { expiresIn: '10m' }
+  );
+}
+
+function createAppToken(user) {
+  return jwt.sign(
+    {
+      sub: String(user.id),
+      username: user.login,
+      avatar_url: user.avatar_url,
+      profile_url: user.html_url,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '1d' }
+  );
+}
+
+function ensureEnvVars(res) {
+  const missing = requiredEnvVars.filter((key) => !process.env[key]);
+
+  if (missing.length > 0) {
+    res.status(500).json({
+      error: 'Missing required environment variables for GitHub OAuth setup',
+      missing,
+    });
+    return false;
+  }
+
+  return true;
+}
+
+function extractBearerToken(req) {
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  return authHeader.slice('Bearer '.length).trim();
+}
+
+router.get('/github', (req, res) => {
+  if (!ensureEnvVars(res)) {
+    return;
+  }
+
+  const params = new URLSearchParams({
+    client_id: process.env.GITHUB_CLIENT_ID,
+    redirect_uri: getCallbackUrl(req),
+    scope: 'read:user user:email',
+    state: createStateToken(),
+  });
+
+  res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
+});
+
+router.get('/callback', async (req, res) => {
+  if (!ensureEnvVars(res)) {
+    return;
+  }
+
+  const { code, state } = req.query;
+  if (!code || !state) {
+    return res.status(400).json({ error: 'Missing required query parameters: code and state' });
+  }
+
+  try {
+    jwt.verify(String(state), process.env.JWT_SECRET);
+
+    const tokenResponse = await axios.post(
+      'https://github.com/login/oauth/access_token',
+      {
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        code,
+        redirect_uri: getCallbackUrl(req),
+      },
+      {
+        headers: {
+          Accept: 'application/json',
+        },
+      }
+    );
+
+    if (!tokenResponse.data.access_token) {
+      return res.status(401).json({ error: 'GitHub token exchange failed' });
+    }
+
+    const githubAccessToken = tokenResponse.data.access_token;
+    const userResponse = await axios.get('https://api.github.com/user', {
+      headers: {
+        Authorization: ['Bearer', githubAccessToken].join(' '),
+        Accept: 'application/vnd.github+json',
+      },
+    });
+
+    const user = userResponse.data;
+    const appToken = createAppToken(user);
+    const redirectUrl = new URL(getFrontendUrl());
+    redirectUrl.searchParams.set('token', appToken);
+
+    return res.redirect(redirectUrl.toString());
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Invalid or expired OAuth state' });
+    }
+
+    return res.status(500).json({ error: 'GitHub OAuth callback failed' });
+  }
+});
+
+router.get('/me', (req, res) => {
+  if (!process.env.JWT_SECRET) {
+    return res.status(500).json({ error: 'Missing JWT_SECRET' });
+  }
+
+  const token = extractBearerToken(req);
+  if (!token) {
+    return res.status(401).json({ error: 'Missing authorization header' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    return res.json({
+      id: decoded.sub,
+      username: decoded.username,
+      avatar_url: decoded.avatar_url,
+      profile_url: decoded.profile_url,
+    });
+  } catch (_error) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+});
+
+module.exports = router;
