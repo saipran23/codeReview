@@ -2,10 +2,20 @@ const crypto = require('crypto');
 const express = require('express');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
 
 const requiredEnvVars = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'JWT_SECRET'];
+const authRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+
+router.use(authRateLimit);
 
 function getCallbackUrl(req) {
   if (process.env.GITHUB_CALLBACK_URL) {
