@@ -1,8 +1,16 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const { Review } = require('../models');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
+const protectedRouteRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
 
 router.get('/', async (_req, res) => {
   const reviews = await Review.findAll({
@@ -12,7 +20,7 @@ router.get('/', async (_req, res) => {
   res.json(reviews);
 });
 
-router.get('/mine', requireAuth, async (req, res) => {
+router.get('/mine', protectedRouteRateLimit, requireAuth, async (req, res) => {
   const userId = Number(req.user.sub);
   if (!Number.isInteger(userId)) {
     return res.status(401).json({ error: 'Invalid token subject' });
@@ -26,7 +34,7 @@ router.get('/mine', requireAuth, async (req, res) => {
   res.json(reviews);
 });
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', protectedRouteRateLimit, requireAuth, async (req, res) => {
   const userId = Number(req.user.sub);
   if (!Number.isInteger(userId)) {
     return res.status(401).json({ error: 'Invalid token subject' });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import './App.css';
 import { apiRequest, getAuthToken, setAuthToken } from './api';
 
@@ -13,35 +13,7 @@ function App() {
     status: 'pending',
   });
 
-  const isAuthenticated = useMemo(() => Boolean(user), [user]);
-
-  const loadSession = useCallback(async () => {
-    const token = getAuthToken();
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const me = await apiRequest('/api/auth/me');
-      setUser(me);
-    } catch (_error) {
-      setAuthToken(null);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadReviews = useCallback(async () => {
-    try {
-      const data = await apiRequest('/api/reviews');
-      setReviews(data);
-    } catch (requestError) {
-      setError(requestError.message);
-    }
-  }, []);
+  const isAuthenticated = Boolean(user);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -53,9 +25,30 @@ function App() {
       window.history.replaceState({}, document.title, `${url.pathname}${url.search}`);
     }
 
-    void loadSession();
-    void loadReviews();
-  }, [loadSession, loadReviews]);
+    async function initialize() {
+      const token = getAuthToken();
+      if (token) {
+        try {
+          const me = await apiRequest('/api/auth/me');
+          setUser(me);
+        } catch {
+          setAuthToken(null);
+          setUser(null);
+        }
+      }
+
+      try {
+        const data = await apiRequest('/api/reviews');
+        setReviews(data);
+      } catch (requestError) {
+        setError(requestError.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void initialize();
+  }, []);
 
   async function handleCreateReview(event) {
     event.preventDefault();
@@ -71,7 +64,8 @@ function App() {
         diffText: '',
         status: 'pending',
       });
-      await loadReviews();
+      const data = await apiRequest('/api/reviews');
+      setReviews(data);
     } catch (requestError) {
       if (requestError.message === 'UNAUTHORIZED') {
         setUser(null);
