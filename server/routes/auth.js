@@ -3,6 +3,7 @@ const express = require('express');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
+const { User } = require('../models');
 
 const router = express.Router();
 
@@ -129,6 +130,13 @@ router.get('/callback', async (req, res) => {
     });
 
     const user = userResponse.data;
+    await User.upsert({
+      githubId: String(user.id),
+      username: user.login,
+      avatarUrl: user.avatar_url || null,
+      profileUrl: user.html_url || null,
+    });
+
     const appToken = createAppToken(user);
     const redirectUrl = new URL(getFrontendUrl());
     redirectUrl.searchParams.set('token', appToken);
