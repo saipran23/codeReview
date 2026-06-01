@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import './App.css';
 import { apiRequest, getAuthToken, setAuthToken } from './api';
+import { getPullRequestDiff, getUserRepos } from './githubService';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [diffLoading, setDiffLoading] = useState(false);
   const [error, setError] = useState('');
   const [reviews, setReviews] = useState([]);
+  const [repos, setRepos] = useState([]);
+  const [diffSummary, setDiffSummary] = useState(null);
   const [form, setForm] = useState({
     prUrl: '',
     diffText: '',
@@ -77,10 +82,58 @@ function App() {
     }
   }
 
+  async function handleLoadRepos() {
+    setError('');
+    setReposLoading(true);
+
+    try {
+      const data = await getUserRepos({ page: 1, perPage: 20 });
+      setRepos(data.repos || []);
+    } catch (requestError) {
+      if (requestError.message === 'UNAUTHORIZED') {
+        setAuthToken(null);
+        setUser(null);
+        setError('Session expired. Please login again.');
+        return;
+      }
+
+      setError(requestError.message);
+    } finally {
+      setReposLoading(false);
+    }
+  }
+
+  async function handleFetchPrDiff() {
+    setError('');
+    setDiffLoading(true);
+
+    try {
+      const data = await getPullRequestDiff(form.prUrl);
+      setForm((prev) => ({
+        ...prev,
+        diffText: data.diffText || '',
+      }));
+      setDiffSummary(data.parsedDiff || null);
+    } catch (requestError) {
+      if (requestError.message === 'UNAUTHORIZED') {
+        setAuthToken(null);
+        setUser(null);
+        setError('Session expired. Please login again.');
+        return;
+      }
+
+      setError(requestError.message);
+    } finally {
+      setDiffLoading(false);
+    }
+  }
+
   function handleLogout() {
     setAuthToken(null);
     setUser(null);
     setError('');
+    setRepos([]);
+    setDiffSummary(null);
     window.location.assign('/');
   }
 
@@ -100,7 +153,12 @@ function App() {
         {!isAuthenticated ? (
           <a className="button" href="/api/auth/github">Login with GitHub</a>
         ) : (
-          <button type="button" onClick={handleLogout}>Logout</button>
+          <>
+            <button type="button" onClick={handleLoadRepos} disabled={reposLoading}>
+              {reposLoading ? 'Loading repos...' : 'Load My Repos'}
+            </button>
+            <button type="button" onClick={handleLogout}>Logout</button>
+          </>
         )}
       </div>
 
@@ -118,6 +176,13 @@ function App() {
               onChange={(event) => setForm((prev) => ({ ...prev, prUrl: event.target.value }))}
             />
           </label>
+          <button
+            type="button"
+            onClick={handleFetchPrDiff}
+            disabled={!isAuthenticated || diffLoading || !form.prUrl.trim()}
+          >
+            {diffLoading ? 'Fetching diff...' : 'Fetch PR Diff'}
+          </button>
           <label>
             Diff Text
             <textarea
@@ -138,6 +203,24 @@ function App() {
           </label>
           <button type="submit" disabled={!isAuthenticated}>Create review</button>
         </form>
+        {diffSummary && (
+          <p>
+            Parsed diff: {diffSummary.totalFiles} files, +{diffSummary.totalAdditions} / -
+            {diffSummary.totalDeletions}
+          </p>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>My GitHub Repositories</h2>
+        <ul>
+          {repos.map((repo) => (
+            <li key={repo.id}>
+              <a href={repo.html_url} target="_blank" rel="noreferrer">{repo.full_name}</a>
+            </li>
+          ))}
+          {repos.length === 0 && <li>No repositories loaded.</li>}
+        </ul>
       </section>
 
       <section className="panel">

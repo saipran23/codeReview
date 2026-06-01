@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const authRoutes = require('./routes/auth');
+const githubRoutes = require('./routes/github');
 const reviewRoutes = require('./routes/reviews');
 const { initializeDatabase } = require('./models');
 
@@ -14,6 +15,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/github', githubRoutes);
 app.use('/api/reviews', reviewRoutes);
 
 async function startServer() {
