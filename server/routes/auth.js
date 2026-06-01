@@ -4,6 +4,7 @@ const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const { User } = require('../models');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -65,15 +66,6 @@ function ensureEnvVars(res) {
   return true;
 }
 
-function extractBearerToken(req) {
-  const authHeader = req.headers.authorization || '';
-  if (!authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  return authHeader.slice('Bearer '.length).trim();
-}
-
 router.get('/github', (req, res) => {
   if (!ensureEnvVars(res)) {
     return;
@@ -130,14 +122,33 @@ router.get('/callback', async (req, res) => {
     });
 
     const user = userResponse.data;
+
+    const emailsResponse = await axios.get('https://api.github.com/user/emails', {
+      headers: {
+        Authorization: ['Bearer', githubAccessToken].join(' '),
+        Accept: 'application/vnd.github+json',
+      },
+    });
+    const primaryEmail = emailsResponse.data.find((entry) => entry.primary)?.email;
+    const email = user.email || primaryEmail || `${user.login}@users.noreply.github.com`;
+
     await User.upsert({
       githubId: String(user.id),
       username: user.login,
-      avatarUrl: user.avatar_url || null,
-      profileUrl: user.html_url || null,
+      email,
+      accessToken: githubAccessToken,
     });
+    const dbUser = await User.findOne({ where: { githubId: String(user.id) } });
+    if (!dbUser) {
+      return res.status(500).json({ error: 'Failed to persist user profile' });
+    }
 
-    const appToken = createAppToken(user);
+    const appToken = createAppToken({
+      id: dbUser.id,
+      login: dbUser.username,
+      avatar_url: user.avatar_url || null,
+      html_url: user.html_url || null,
+    });
     const redirectUrl = new URL(getFrontendUrl());
     redirectUrl.searchParams.set('token', appToken);
 
@@ -151,28 +162,13 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-router.get('/me', (req, res) => {
-  if (!process.env.JWT_SECRET) {
-    return res.status(500).json({ error: 'Missing JWT_SECRET' });
-  }
-
-  const token = extractBearerToken(req);
-  if (!token) {
-    return res.status(401).json({ error: 'Missing authorization header' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    return res.json({
-      id: decoded.sub,
-      username: decoded.username,
-      avatar_url: decoded.avatar_url,
-      profile_url: decoded.profile_url,
-    });
-  } catch (_error) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
+router.get('/me', requireAuth, (req, res) => {
+  return res.json({
+    id: req.user.sub,
+    username: req.user.username,
+    avatar_url: req.user.avatar_url,
+    profile_url: req.user.profile_url,
+  });
 });
 
 module.exports = router;
