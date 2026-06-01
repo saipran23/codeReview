@@ -1,40 +1,39 @@
 const { DataTypes } = require('sequelize');
 
-function createUserModel(sequelize) {
+function createReviewModel(sequelize) {
   return sequelize.define(
-    'User',
+    'Review',
     {
       id: {
         type: DataTypes.INTEGER,
         autoIncrement: true,
         primaryKey: true,
       },
-      githubId: {
-        type: DataTypes.STRING,
+      userId: {
+        type: DataTypes.INTEGER,
         allowNull: false,
-        unique: true,
-        field: 'github_id',
+        field: 'user_id',
       },
-      username: {
-        type: DataTypes.STRING,
+      prUrl: {
+        type: DataTypes.TEXT,
         allowNull: false,
+        field: 'pr_url',
       },
-      email: {
-        type: DataTypes.STRING,
+      diffText: {
+        type: DataTypes.TEXT,
         allowNull: false,
-        unique: true,
+        field: 'diff_text',
       },
-      accessToken: {
+      status: {
         type: DataTypes.STRING,
         allowNull: false,
-        field: 'access_token',
       },
     },
     {
-      tableName: 'users',
+      tableName: 'reviews',
       underscored: true,
     }
   );
 }
 
-module.exports = createUserModel;
+module.exports = createReviewModel;

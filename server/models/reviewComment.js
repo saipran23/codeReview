@@ -1,40 +1,39 @@
 const { DataTypes } = require('sequelize');
 
-function createUserModel(sequelize) {
+function createReviewCommentModel(sequelize) {
   return sequelize.define(
-    'User',
+    'ReviewComment',
     {
       id: {
         type: DataTypes.INTEGER,
         autoIncrement: true,
         primaryKey: true,
       },
-      githubId: {
-        type: DataTypes.STRING,
+      reviewId: {
+        type: DataTypes.INTEGER,
         allowNull: false,
-        unique: true,
-        field: 'github_id',
+        field: 'review_id',
       },
-      username: {
+      fileName: {
         type: DataTypes.STRING,
         allowNull: false,
+        field: 'file_name',
       },
-      email: {
-        type: DataTypes.STRING,
+      lineNumber: {
+        type: DataTypes.INTEGER,
         allowNull: false,
-        unique: true,
+        field: 'line_number',
       },
-      accessToken: {
-        type: DataTypes.STRING,
+      message: {
+        type: DataTypes.TEXT,
         allowNull: false,
-        field: 'access_token',
       },
     },
     {
-      tableName: 'users',
+      tableName: 'review_comments',
       underscored: true,
     }
   );
 }
 
-module.exports = createUserModel;
+module.exports = createReviewCommentModel;
