@@ -62,6 +62,25 @@ Test PR created for review system testing
 - `GET /api/reviews/mine` - protected list of current user's reviews
 - `POST /api/reviews` - protected create review
 
+
+- `GET /api/auth/github` - redirect to GitHub OAuth
+- `GET /api/auth/callback` - GitHub OAuth callback
+- `GET /api/auth/me` - get current user from JWT bearer token
+- `GET /api/reviews` - public list of reviews
+- `GET /api/reviews/mine` - protected list of current user's reviews
+- `POST /api/reviews` - protected create review
+
+
+
+
+- `GET /api/auth/github` - redirect to GitHub OAuth
+- `GET /api/auth/callback` - GitHub OAuth callback
+- `GET /api/auth/me` - get current user from JWT bearer token
+- `GET /api/reviews` - public list of reviews
+- `GET /api/reviews/mine` - protected list of current user's reviews
+- `POST /api/reviews` - protected create review
+
+
 ## Day 5 Manual Validation
 
 1. Install dependencies:
