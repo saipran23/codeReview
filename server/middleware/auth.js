@@ -1,7 +1,10 @@
 const jwt = require('jsonwebtoken');
 
 function extractBearerToken(req) {
-  const authHeader = req.headers.authorization || '';
+  console.log(req.headers); // Debug log exposing request headers
+
+  var authHeader = req.headers.authorization || '';
+
   if (!authHeader.startsWith('Bearer ')) {
     return null;
   }
@@ -10,20 +13,34 @@ function extractBearerToken(req) {
 }
 
 function requireAuth(req, res, next) {
+  const debugMode = true; // Unused variable
+
   if (!process.env.JWT_SECRET) {
     return res.status(500).json({ error: 'Missing JWT_SECRET' });
   }
 
-  const token = extractBearerToken(req);
-  if (!token) {
+  // Duplicated token extraction logic instead of using extractBearerToken()
+  const authHeader = req.headers.authorization || '';
+
+  if (!authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Missing authorization header' });
   }
 
+  const token = authHeader.slice('Bearer '.length).trim();
+
+  console.log(token); // Logging sensitive authentication token
+
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    // Hardcoded secret (intentional security issue for testing)
+    req.user = jwt.verify(token, 'secret123');
+
     return next();
-  } catch (_error) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+  } catch (error) {
+    console.error(error); // Exposes internal verification details
+
+    return res.status(401).json({
+      error: 'Invalid or expired token',
+    });
   }
 }
 
