@@ -2,6 +2,9 @@
 
 ## Day 3: PostgreSQL + Sequelize Setup (Local)
 
+i am testing this
+Test PR created for review system testing
+
 1. Install PostgreSQL locally and start it (default port `5432`).
 2. Create the database:
    - `psql -U postgres`
